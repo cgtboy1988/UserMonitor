@@ -37,8 +37,10 @@ import org.jnativehook.mouse.NativeMouseWheelListener;
 
 
 
-public class Start implements NativeMouseInputListener, Runnable, ScreenshotListener
+public class Start implements NativeMouseInputListener, NativeKeyListener, Runnable, ScreenshotListener
 {
+	boolean verbose = false;
+	
 	private Thread myThread;
 	private ActiveWindowMonitor myMonitor = new ActiveWindowMonitor();
 	private String windowID = "";
@@ -51,10 +53,12 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 	private ConcurrentLinkedQueue windowsToWrite = new ConcurrentLinkedQueue();
 	private ConcurrentLinkedQueue clicksToWrite = new ConcurrentLinkedQueue();
 	private ConcurrentLinkedQueue screenshotsToWrite = new ConcurrentLinkedQueue();
-	private int screenshotTimeout = 15000;
+	private ConcurrentLinkedQueue keysToWrite = new ConcurrentLinkedQueue();
+	private int screenshotTimeout = 1000;
 	private ScreenshotGenerator myGenerator;
+	private TestingConnectionSource connectionSource = new TestingConnectionSource();
 	
-	private String userName = "user7";
+	private String userName = "user8";
 	
 	public Start()
 	{
@@ -66,6 +70,7 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 			logger.setLevel(Level.OFF);
 			GlobalScreen.registerNativeHook();
 			GlobalScreen.addNativeMouseListener(this);
+			GlobalScreen.addNativeKeyListener(this);
 		}
 		catch(NativeHookException e)
 		{
@@ -102,6 +107,7 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 				windowsToWrite.add(newWindow);
 			}
 			currentWindowData = newWindow;
+			if(verbose)
 			System.out.println("New window");
 			return true;
 		}
@@ -111,12 +117,13 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 	
 	boolean recordClick = false;
 	@Override
-	public void nativeMouseClicked(NativeMouseEvent arg0)
+	public synchronized void nativeMouseClicked(NativeMouseEvent arg0)
 	{
 		if(!recordClick)
 		{
 			return;
 		}
+		//if(verbose)
 		//System.out.println("Mouse Clicked: " + arg0.getX() + ", " + arg0.getY());
 		checkNew(myMonitor.getTopWindow());
 		HashMap clickToWrite = new HashMap();
@@ -130,8 +137,9 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 	}
 
 	@Override
-	public void nativeMousePressed(NativeMouseEvent arg0)
+	public synchronized void nativeMousePressed(NativeMouseEvent arg0)
 	{
+		//if(verbose)
 		//System.out.println("Mouse Pressed: " + arg0.getX() + ", " + arg0.getY());
 		checkNew(myMonitor.getTopWindow());
 		HashMap clickToWrite = new HashMap();
@@ -145,8 +153,9 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 	}
 
 	@Override
-	public void nativeMouseReleased(NativeMouseEvent arg0)
+	public synchronized void nativeMouseReleased(NativeMouseEvent arg0)
 	{
+		//if(verbose)
 		//System.out.println("Mouse Released: " + arg0.getX() + ", " + arg0.getY());
 		checkNew(myMonitor.getTopWindow());
 		HashMap clickToWrite = new HashMap();
@@ -162,12 +171,13 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 	
 	private boolean useDragged = false;
 	@Override
-	public void nativeMouseDragged(NativeMouseEvent arg0)
+	public synchronized void nativeMouseDragged(NativeMouseEvent arg0)
 	{
 		if(!useDragged)
 		{
 			return;
 		}
+		//if(verbose)
 		//System.out.println("Mouse Dragged: " + arg0.getX() + ", " + arg0.getY());
 		checkNew(myMonitor.getTopWindow());
 		HashMap clickToWrite = new HashMap();
@@ -183,15 +193,82 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 	@Override
 	public void nativeMouseMoved(NativeMouseEvent arg0)
 	{
+		//if(verbose)
 		//System.out.println("Mouse Moved: " + arg0.getX() + ", " + arg0.getY());
 		
+	}
+	
+	@Override
+	public synchronized void nativeKeyPressed(NativeKeyEvent arg0)
+	{
+		
+		checkNew(myMonitor.getTopWindow());
+		HashMap keyToWrite = new HashMap();
+		keyToWrite.put("type", "press");
+		keyToWrite.put("inputTime", new Timestamp(new Date().getTime()));
+		keyToWrite.put("window", currentWindowData);
+		keyToWrite.put("button", NativeKeyEvent.getKeyText(arg0.getKeyCode()));
+		if(currentWindowData == null)
+		{
+			System.err.println(keyToWrite);
+		}
+		keysToWrite.add(keyToWrite);
+		
+	}
+
+	@Override
+	public synchronized void nativeKeyReleased(NativeKeyEvent arg0)
+	{
+		
+		checkNew(myMonitor.getTopWindow());
+		HashMap keyToWrite = new HashMap();
+		keyToWrite.put("type", "release");
+		keyToWrite.put("inputTime", new Timestamp(new Date().getTime()));
+		keyToWrite.put("window", currentWindowData);
+		keyToWrite.put("button", NativeKeyEvent.getKeyText(arg0.getKeyCode()));
+		if(currentWindowData == null)
+		{
+			System.err.println(keyToWrite);
+		}
+		keysToWrite.add(keyToWrite);
+		
+	}
+	
+	@Override
+	public void nativeKeyTyped(NativeKeyEvent arg0)
+	{
+		//System.out.println("" + arg0.getWhen() + ":" + arg0.getKeyChar());
+		//System.out.println(Short.MAX_VALUE * 2);
+		//if(true)
+		//	return;
+		checkNew(myMonitor.getTopWindow());
+		HashMap keyToWrite = new HashMap();
+		keyToWrite.put("type", "type");
+		keyToWrite.put("inputTime", new Timestamp(new Date().getTime()));
+		keyToWrite.put("preciseTime", arg0.getWhen());
+		keyToWrite.put("window", currentWindowData);
+		keyToWrite.put("button", "" + arg0.getKeyChar());
+		if(currentWindowData == null)
+		{
+			System.err.println(keyToWrite);
+		}
+		keysToWrite.add(keyToWrite);
 	}
 
 	@Override
 	public void run()
 	{
-		TestingConnectionSource connectionSource = new TestingConnectionSource();
+		//if(true)
+		//	return;
 		Connection myConnection = connectionSource.getDatabaseConnection();
+		try
+		{
+			myConnection.setAutoCommit(false);
+		}
+		catch (SQLException e2)
+		{
+			e2.printStackTrace();
+		}
 		int count = 0;
 		while(true)
 		{
@@ -201,6 +278,7 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 				if(myConnection.isClosed())
 				{
 					myConnection = connectionSource.getDatabaseConnection();
+					myConnection.setAutoCommit(false);
 				}
 			}
 			catch(SQLException e1)
@@ -214,9 +292,9 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 				checkNew(myMonitor.getTopWindow());
 				if(count > 5 && !windowsToWrite.isEmpty() || !clicksToWrite.isEmpty() || !screenshotsToWrite.isEmpty())
 				{
-					myConnection.setAutoCommit(false);
 					
-					System.out.println("Recording user JIC");
+					if(verbose)
+						System.out.println("Recording user JIC");
 					
 					String userInsert = "INSERT IGNORE INTO `dataCollection`.`User` (`username`) VALUES ";
 					String userRow = "(?)";
@@ -226,11 +304,13 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 					userStatement.execute();
 					
 					
-					System.out.println("Time to record " + windowsToWrite.size() + " window changes");
+					if(verbose)
+						System.out.println("Time to record " + windowsToWrite.size() + " window changes");
 					
 					int toInsert = windowsToWrite.size();
 					int clickToInsert = clicksToWrite.size();
 					int screenshotsToInsert = screenshotsToWrite.size();
+					int keyToInsert = keysToWrite.size();
 					ConcurrentLinkedQueue countQueue = new ConcurrentLinkedQueue();
 					//ConcurrentLinkedQueue nextQueue = new ConcurrentLinkedQueue();
 					
@@ -254,6 +334,8 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 						
 						boolean hasArgs = false;
 						
+						
+						boolean argsStarted = false;
 						for(int x=0; x<toInsert; x++)
 						{
 							HashMap tmpMap = (HashMap) windowsToWrite.poll();
@@ -264,16 +346,20 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 							for(int y=0; argList != null && y<argList.size(); y++)
 							{
 								hasArgs = true;
-								if(y > 0)
+								if(y > 0 || argsStarted)
 								{
 									processArgInsert += ", " + eachProcessArgRow;
 								}
 								else
 								{
+									argsStarted = true;
 									processArgInsert += eachProcessArgRow;
 								}
+								//if(verbose)
+								//System.out.println(processArgInsert);
 							}
 							
+							//if(verbose)
 							//System.out.println(tmpProcess);
 							
 							countQueue.add(tmpMap);
@@ -294,17 +380,23 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 							}
 						}
 						
-						System.out.println(processInsert);
-						System.out.println(processAttInsert);
-						System.out.println(windowInsert);
-						System.out.println(windowDetailInsert);
-						System.out.println(processArgInsert);
+						if(verbose)
+							System.out.println(processInsert);
+						if(verbose)
+							System.out.println(processAttInsert);
+						if(verbose)
+							System.out.println(windowInsert);
+						if(verbose)
+							System.out.println(windowDetailInsert);
+						if(verbose)
+							System.out.println(processArgInsert);
 						
 						PreparedStatement processStatement = myConnection.prepareStatement(processInsert);
 						PreparedStatement processAttStatement = myConnection.prepareStatement(processAttInsert);
 						PreparedStatement windowStatement = myConnection.prepareStatement(windowInsert);
 						PreparedStatement windowDetailStatement = myConnection.prepareStatement(windowDetailInsert);
 						
+						//if(verbose)
 						//System.out.println(processArgInsert);
 						PreparedStatement processArgStatement = null;
 						if(hasArgs)
@@ -433,6 +525,7 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 								argFieldCount++;
 							}
 							
+							//if(verbose)
 							//System.out.println(tmpProcess);
 							
 							//nextQueue.add(tmpMap);
@@ -444,6 +537,8 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 						windowDetailStatement.execute();
 						if(hasArgs)
 						{
+							//if(verbose)
+							//System.out.println(processArgStatement);
 							processArgStatement.execute();
 						}
 						
@@ -451,7 +546,8 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 					
 					//toWrite.clear();
 					
-					System.out.println("Time to record " + clicksToWrite.size() + " mouse clicks");
+					if(verbose)
+						System.out.println("Time to record " + clicksToWrite.size() + " mouse clicks");
 					if(clickToInsert > 0)
 					{
 						ConcurrentLinkedQueue nextClickQueue = new ConcurrentLinkedQueue();
@@ -482,7 +578,8 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 							}
 						}
 						
-						System.out.println(mouseClickInsert);
+						if(verbose)
+							System.out.println(mouseClickInsert);
 						
 						PreparedStatement mouseClickStatement = myConnection.prepareStatement(mouseClickInsert);
 						
@@ -511,6 +608,7 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 							mouseClickStatement.setString(mouseClickCount, (String) tmpMap.get("WindowID"));
 							mouseClickCount++;
 							
+							//if(verbose)
 							//System.out.println(tmpMap.get("clickedInTime"));
 							mouseClickStatement.setTimestamp(mouseClickCount, (Timestamp) tmpMap.get("clickedInTime"));
 							mouseClickCount++;
@@ -524,6 +622,7 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 							mouseClickStatement.setInt(mouseClickCount, (int) clickMap.get("yLoc"));
 							mouseClickCount++;
 							
+							//if(verbose)
 							//System.out.println(clickMap.get("clickTime"));
 							mouseClickStatement.setTimestamp(mouseClickCount, (Timestamp) clickMap.get("clickTime"));
 							mouseClickCount++;
@@ -537,7 +636,8 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 					}
 					
 					
-					System.out.println("Time to record " + screenshotsToWrite.size() + " screenshots");
+					if(verbose)
+						System.out.println("Time to record " + screenshotsToWrite.size() + " screenshots");
 					if(screenshotsToInsert > 0)
 					{
 						ConcurrentLinkedQueue nextScreenshotQueue = new ConcurrentLinkedQueue();
@@ -567,7 +667,8 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 							}
 						}
 						
-						System.out.println(screenshotInsert);
+						if(verbose)
+							System.out.println(screenshotInsert);
 						
 						PreparedStatement screenshotStatement = myConnection.prepareStatement(screenshotInsert);
 						
@@ -597,12 +698,104 @@ public class Start implements NativeMouseInputListener, Runnable, ScreenshotList
 						}
 					}
 					
-					//clicksToWrite.clear();
+					if(verbose)
+						System.out.println("Time to record " + keysToWrite.size() + " keyboard activities");
+					
+					if(keyToInsert > 0)
+					{
+						String allTyped = "";
+						ConcurrentLinkedQueue nextPressQueue = new ConcurrentLinkedQueue();
+						
+						String keyPressInsert = "INSERT IGNORE INTO `dataCollection`.`KeyboardInput` (`username`, `user`, `pid`, `start`, `xid`, `timeChanged`, `type`, `button`, `inputTime`) VALUES ";
+						String keyPressRow = "(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+						
+						for(int x=0; x < keyToInsert; x++)
+						{
+							HashMap pressMap = (HashMap) keysToWrite.poll();
+							HashMap windowMap = (HashMap) pressMap.get("window");
+							if(windowMap == null)
+							{
+								keyToInsert--;
+								//continue;
+							}
+							else
+							{
+								nextPressQueue.add(pressMap);
+								if(x==0)
+								{
+									keyPressInsert += keyPressRow;
+								}
+								else
+								{
+									keyPressInsert += ", " + keyPressRow;
+								}
+							}
+						}
+						
+						if(verbose)
+							System.out.println(keyPressInsert);
+						
+						PreparedStatement keyPressStatement = myConnection.prepareStatement(keyPressInsert);
+						
+						int keyPressCount = 1;
+						
+						for(int x=0; keyToInsert > 0 && x < keyToInsert; x++)
+						{
+							HashMap pressMap = (HashMap) nextPressQueue.poll();
+							HashMap tmpMap = (HashMap) pressMap.get("window");
+							HashMap tmpProcess = (HashMap) tmpMap.get("ProcessInfo");
+							
+							keyPressStatement.setString(keyPressCount, userName);
+							keyPressCount++;
+							
+							keyPressStatement.setString(keyPressCount, (String) tmpProcess.get("USER"));
+							keyPressCount++;
+							
+							keyPressStatement.setString(keyPressCount, (String) tmpProcess.get("PID"));
+							keyPressCount++;
+							
+							keyPressStatement.setString(keyPressCount, (String) tmpProcess.get("START"));
+							keyPressCount++;
+							
+							keyPressStatement.setString(keyPressCount, (String) tmpMap.get("WindowID"));
+							keyPressCount++;
+							
+							//if(verbose)
+							//System.out.println(tmpMap.get("pressedInTime"));
+							keyPressStatement.setTimestamp(keyPressCount, (Timestamp) tmpMap.get("clickedInTime"));
+							keyPressCount++;
+							
+							keyPressStatement.setString(keyPressCount, (String) pressMap.get("type"));
+							keyPressCount++;
+							
+							keyPressStatement.setObject(keyPressCount, pressMap.get("button"));
+							keyPressCount++;
+							
+							//if(verbose)
+							//System.out.println(pressMap.get("pressTime"));
+							keyPressStatement.setTimestamp(keyPressCount, (Timestamp) pressMap.get("inputTime"));
+							keyPressCount++;
+							
+							//allTyped += pressMap.get("button");
+							
+							
+						}
+						
+						if(keyToInsert > 0)
+						{
+							keyPressStatement.execute();
+							//System.out.println("Inserting " + allTyped);
+							//System.out.println(keyPressStatement);
+						}
+					}
+					
+					//presssToWrite.clear();
 					count = 0;
 					
 					myConnection.commit();
 				}
 				Thread.sleep(500);
+				//if(verbose)
 				//System.out.println("Loop");
 			}
 			catch(Exception e)
