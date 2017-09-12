@@ -1,3 +1,4 @@
+package com.datacollectorlocal;
 
 
 import java.awt.Image;
@@ -56,12 +57,14 @@ public class Start implements NativeMouseInputListener, NativeKeyListener, Runna
 	private ConcurrentLinkedQueue keysToWrite = new ConcurrentLinkedQueue();
 	private int screenshotTimeout = 1000;
 	private ScreenshotGenerator myGenerator;
+	private boolean running = false;
 	private TestingConnectionSource connectionSource = new TestingConnectionSource();
 	
-	private String userName = "user8";
+	private String userName = "default";
 	
-	public Start()
+	public Start(String user)
 	{
+		userName = user;
 		myThread = new Thread(this);
 		myThread.start();
 		try
@@ -83,7 +86,7 @@ public class Start implements NativeMouseInputListener, NativeKeyListener, Runna
 
 	public static void main(String[] args)
 	{
-		Start myStart = new Start();
+		Start myStart = new Start("default");
 	}
 	
 	public synchronized boolean checkNew(HashMap newWindow)
@@ -254,10 +257,26 @@ public class Start implements NativeMouseInputListener, NativeKeyListener, Runna
 		}
 		keysToWrite.add(keyToWrite);
 	}
+	
+	public void stop()
+	{
+		GlobalScreen.removeNativeKeyListener(this);
+		GlobalScreen.removeNativeMouseListener(this);
+		try
+		{
+			GlobalScreen.unregisterNativeHook();
+		}
+		catch(NativeHookException e)
+		{
+			e.printStackTrace();
+		}
+		running = false;
+	}
 
 	@Override
 	public void run()
 	{
+		running = true;
 		//if(true)
 		//	return;
 		Connection myConnection = connectionSource.getDatabaseConnection();
@@ -270,7 +289,7 @@ public class Start implements NativeMouseInputListener, NativeKeyListener, Runna
 			e2.printStackTrace();
 		}
 		int count = 0;
-		while(true)
+		do
 		{
 			count++;
 			try
@@ -802,7 +821,7 @@ public class Start implements NativeMouseInputListener, NativeKeyListener, Runna
 			{
 				e.printStackTrace();
 			}
-		}
+		} while(running);
 		
 	}
 

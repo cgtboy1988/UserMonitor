@@ -1,3 +1,4 @@
+package com.datacollectorlocal;
 
 public class DatabaseConnector
 {
