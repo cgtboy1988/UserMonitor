@@ -4,16 +4,22 @@ package com.datacollectorlocal;
 import java.awt.Image;
 import java.awt.image.RenderedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -59,11 +65,14 @@ public class Start implements NativeMouseInputListener, NativeKeyListener, Runna
 	private ScreenshotGenerator myGenerator;
 	private boolean running = false;
 	private TestingConnectionSource connectionSource = new TestingConnectionSource();
+	private String currentToken;
 	
 	private String userName = "default";
+	private String serverURL = "";
 	
 	public Start(String user)
 	{
+		currentToken = UUID.randomUUID().toString();
 		userName = user;
 		myThread = new Thread(this);
 		myThread.start();
@@ -83,9 +92,42 @@ public class Start implements NativeMouseInputListener, NativeKeyListener, Runna
 		myGenerator.addScreenshotListener(this);
 		
 	}
+	
+	public static void checkVersion()
+	{
+		String jarPath = (Start.class.getProtectionDomain().getCodeSource().getLocation().getPath()).toString();
+		File currentFile = new File(jarPath);
+		System.out.println(jarPath);
+		System.out.println(Arrays.toString(currentFile.list()));
+		if(!currentFile.isFile())
+		{
+			System.out.println("Warning: Not running from JAR");
+		}
+		else
+		{
+			try
+			{
+				MessageDigest md = MessageDigest.getInstance("MD5");
+				byte[] b = Files.readAllBytes(Paths.get(jarPath));
+			}
+			catch(Exception e)
+			{
+				
+			}
+		}
+	}
+	
+	public static void configure()
+	{
+		
+	}
 
 	public static void main(String[] args)
 	{
+		configure();
+		checkVersion();
+		if(true)
+			return;
 		Start myStart = new Start("default");
 	}
 	
